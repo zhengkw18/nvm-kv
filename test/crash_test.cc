@@ -41,8 +41,8 @@ int main() {
     printf("open engine_path: %s\n", engine_path.c_str());
 
     for (int i = 0; i < KV_CNT; ++i) {
-        gen_random(k, KEY_SIZE);
-        ks[i] = std::string(k) + std::to_string(i);
+        gen_marked_random(k, std::to_string(i) + "-", KEY_SIZE);
+        ks[i] = std::string(k);
         gen_random(v, VALUE_SIZE);
         vs[i] = v;
     }

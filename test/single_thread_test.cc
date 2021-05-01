@@ -57,7 +57,7 @@ int main() {
 
     ////////////////////////////////////
     gen_random(k, 13);
-    gen_random(v, 4097);
+    gen_random(v, 512);
 
     ret = engine->Write(k, v);
     assert(ret == kSucc);
@@ -70,9 +70,9 @@ int main() {
     for (int i = 0; i < KV_CNT; ++i) {
         gen_random(k, 6);
         ks[i] = std::string(k) + std::to_string(i);
-        gen_random(v, 1027);
+        gen_random(v, 511);
         vs_1[i] = v;
-        gen_random(v, 1027);
+        gen_random(v, 511);
         vs_2[i] = v;
     }
 

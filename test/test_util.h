@@ -18,6 +18,7 @@ inline unsigned long long asm_rdtsc(void) {
 
 thread_local unsigned int rand_seed = asm_rdtsc();
 inline void gen_random(char *s, const int len) {
+    assert(len >= 0);
     static const char alphanum[] =
         "0123456789"
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -28,6 +29,22 @@ inline void gen_random(char *s, const int len) {
     }
 
     s[len] = 0;
+}
+// to guarantee that each string is unique, 
+// attach mark to the key.
+inline void gen_marked_random(char *s, const std::string& mark, const int len) {
+    assert(mark.length() < len);
+    static const char alphanum[] =
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+    memcpy(s, mark.data(), mark.length());
+    gen_random(s + mark.length(), len - mark.length());
+}
+
+inline int rand_int(int lower, int upper)
+{
+    return rand() % (upper - lower + 1) + lower;
 }
 
 #endif /* __ASM_H__ */

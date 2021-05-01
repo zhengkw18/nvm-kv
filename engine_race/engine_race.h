@@ -2,33 +2,54 @@
 #ifndef ENGINE_RACE_ENGINE_RACE_H_
 #define ENGINE_RACE_ENGINE_RACE_H_
 #include <string>
-
+#include <pthread.h>
 #include "include/engine.h"
+#include "utils.h"
+#include "avl.h"
+#include "bplus.h"
 
-namespace polar_race {
+namespace polar_race
+{
 
-class EngineRace : public Engine {
-public:
-    static RetCode Open(const std::string& name, Engine** eptr);
+    class Snapshot
+    {
+    private:
+        Tree *tree[HASH_SIZE];
+        pthread_rwlock_t treelock[HASH_SIZE];
+        friend class EngineRace;
+    };
 
-    explicit EngineRace(const std::string& dir) {}
+    class EngineRace : public Engine
+    {
+    public:
+        static RetCode Open(const std::string &name, Engine **eptr);
 
-    ~EngineRace();
+        explicit EngineRace(const std::string &name);
 
-    RetCode Write(const PolarString& key, const PolarString& value) override;
+        ~EngineRace();
 
-    RetCode Read(const PolarString& key, std::string* value) override;
+        RetCode Write(const PolarString &key, const PolarString &value) override;
 
-    /*
+        RetCode Read(const PolarString &key, std::string *value, Snapshot *snapshot) override;
+
+        /*
      * NOTICE: Implement 'Range' in quarter-final,
      *         you can skip it in preliminary.
      */
-    RetCode Range(const PolarString& lower, const PolarString& upper,
-                  Visitor& visitor) override;
+        RetCode Range(const PolarString &lower, const PolarString &upper, Visitor &visitor, Snapshot *snapshot) override;
+        Snapshot *GetSnapshot() override;
+        RetCode ReleaseSnapshot(Snapshot *snapshot) override;
 
-private:
-};
+    private:
+        u32 current_seq, current_size, current_offset;
+        i8 *file_map;
+        i32 file_fd;
+        pthread_rwlock_t rwlock;
+        pthread_rwlock_t treelock[HASH_SIZE];
+        Tree *tree[HASH_SIZE];
+        inline void _expand();
+    };
 
-}  // namespace polar_race
+} // namespace polar_race
 
-#endif  // ENGINE_RACE_ENGINE_RACE_H_
+#endif // ENGINE_RACE_ENGINE_RACE_H_
