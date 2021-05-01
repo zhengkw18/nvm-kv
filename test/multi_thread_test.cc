@@ -21,10 +21,12 @@ std::string ks[THREAD_NUM][KV_CNT];
 std::string vs[THREAD_NUM][KV_CNT];
 Engine *engine = NULL;
 
-void test_thread(int id) {
+void test_thread(int id)
+{
     RetCode ret;
     std::string value;
-    for (int i = 0; i < KV_CNT; ++i) {
+    for (int i = 0; i < KV_CNT; ++i)
+    {
         ret = engine->Write(ks[id][i], vs[id][i]);
         assert(ret == kSucc);
 
@@ -34,19 +36,23 @@ void test_thread(int id) {
     }
 }
 
-void test_thread_conflict(int id) {
+void test_thread_conflict(int id)
+{
     RetCode ret;
     std::string value;
 
-    for (int k = 0; k < 10000; ++k) {
-        for (int i = 0; i < CONFLICT_KEY; ++i) {
+    for (int k = 0; k < 10000; ++k)
+    {
+        for (int i = 0; i < CONFLICT_KEY; ++i)
+        {
             ret = engine->Write(ks[0][i], vs[id][i]);
             assert(ret == kSucc);
         }
     }
 }
 
-int main() {
+int main()
+{
     printf_(
         "======================= multi thread test "
         "============================");
@@ -60,8 +66,10 @@ int main() {
     assert(ret == kSucc);
     printf("open engine_path: %s\n", engine_path.c_str());
 
-    for (int t = 0; t < THREAD_NUM; ++t) {
-        for (int i = 0; i < KV_CNT; ++i) {
+    for (int t = 0; t < THREAD_NUM; ++t)
+    {
+        for (int i = 0; i < KV_CNT; ++i)
+        {
             gen_marked_random(k, std::to_string(t) + "-" + std::to_string(i) + "-",
                               KEY_SIZE);
             ks[t][i] = std::string(k);
@@ -72,16 +80,20 @@ int main() {
     }
 
     std::thread ths[THREAD_NUM];
-    for (int i = 0; i < THREAD_NUM; ++i) {
+    for (int i = 0; i < THREAD_NUM; ++i)
+    {
         ths[i] = std::thread(test_thread, i);
     }
-    for (int i = 0; i < THREAD_NUM; ++i) {
+    for (int i = 0; i < THREAD_NUM; ++i)
+    {
         ths[i].join();
     }
 
     std::string value;
-    for (int t = 0; t < THREAD_NUM; ++t) {
-        for (int i = 0; i < KV_CNT; ++i) {
+    for (int t = 0; t < THREAD_NUM; ++t)
+    {
+        for (int i = 0; i < KV_CNT; ++i)
+        {
             ret = engine->Read(ks[t][i], &value);
             assert(ret == kSucc);
             assert(value == vs[t][i]);
@@ -89,19 +101,24 @@ int main() {
     }
 
     ////////////////////////////////////////////////////////////////////
-    for (int i = 0; i < THREAD_NUM; ++i) {
+    for (int i = 0; i < THREAD_NUM; ++i)
+    {
         ths[i] = std::thread(test_thread_conflict, i);
     }
-    for (int i = 0; i < THREAD_NUM; ++i) {
+    for (int i = 0; i < THREAD_NUM; ++i)
+    {
         ths[i].join();
     }
-    for (int i = 0; i < CONFLICT_KEY; ++i) {
+    for (int i = 0; i < CONFLICT_KEY; ++i)
+    {
         ret = engine->Read(ks[0][i], &value);
         assert(ret == kSucc);
 
         bool found = false;
-        for (int t = 0; t < THREAD_NUM; ++t) {
-            if (value == vs[t][i]) {
+        for (int t = 0; t < THREAD_NUM; ++t)
+        {
+            if (value == vs[t][i])
+            {
                 found = true;
                 break;
             }

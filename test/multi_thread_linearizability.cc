@@ -22,39 +22,47 @@ using namespace polar_race;
 char v[9024];
 std::string key;
 std::string vs[THREAD_NUM][KV_CNT];
-Engine* engine = NULL;
+Engine *engine = NULL;
 
 template <typename T, typename... Args>
-std::unique_ptr<T> make_unique(Args&&... args) {
+std::unique_ptr<T> make_unique(Args &&...args)
+{
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
-class Tracer {
+class Tracer
+{
 public:
-    Tracer(const std::string& filename) {
+    Tracer(const std::string &filename)
+    {
         outfile.open(filename, std::ios_base::trunc);
     }
-    void start_write(int tid, std::string* value) {
+    void start_write(int tid, std::string *value)
+    {
         std::lock_guard<std::mutex> lk(mu_);
         log("invoke", "write", value, tid);
     }
-    void finish_write(int tid, std::string* value) {
+    void finish_write(int tid, std::string *value)
+    {
         std::lock_guard<std::mutex> lk(mu_);
         log("ok", "write", value, tid);
     }
-    void start_read(int tid) {
+    void start_read(int tid)
+    {
         std::lock_guard<std::mutex> lk(mu_);
         log("invoke", "read", nullptr, tid);
     }
-    void finish_read(int tid, std::string* value) {
+    void finish_read(int tid, std::string *value)
+    {
         std::lock_guard<std::mutex> lk(mu_);
         log("ok", "read", value, tid);
     }
     ~Tracer() { outfile << std::endl; }
 
 private:
-    void log(const std::string& type, const std::string f, std::string* value,
-             int tid) {
+    void log(const std::string &type, const std::string f, std::string *value,
+             int tid)
+    {
         outfile << "{:type :" << type << ", :f :" << f << ", :value "
                 << ((value == nullptr || value->empty()) ? "nil" : "V" + *value)
                 << ", :process " << tid << "}\n";
@@ -65,17 +73,22 @@ private:
 std::string trace_file = "./trace.edn";
 Tracer tracer(trace_file);
 
-void test_thread_conflict(int id) {
+void test_thread_conflict(int id)
+{
     RetCode ret;
     std::string value;
 
-    for (int i = 0; i < TEST_CNT; ++i) {
-        if (rand_int(0, 100) <= 50) {
+    for (int i = 0; i < TEST_CNT; ++i)
+    {
+        if (rand_int(0, 100) >= 50)
+        {
             tracer.start_read(id);
             ret = engine->Read(key, &value);
             tracer.finish_read(id, &value);
             assert(ret == kSucc);
-        } else {
+        }
+        else
+        {
             tracer.start_write(id, &vs[id][i % KV_CNT]);
             ret = engine->Write(key, vs[id][i % KV_CNT]);
             tracer.finish_write(id, &vs[id][i % KV_CNT]);
@@ -84,7 +97,8 @@ void test_thread_conflict(int id) {
     }
 }
 
-int main() {
+int main()
+{
     printf_(
         "======================= multi thread test "
         "============================");
@@ -98,18 +112,22 @@ int main() {
     assert(ret == kSucc);
     printf("open engine_path: %s\n", engine_path.c_str());
 
-    for (int t = 0; t < THREAD_NUM; ++t) {
-        for (int i = 0; i < KV_CNT; ++i) {
+    for (int t = 0; t < THREAD_NUM; ++t)
+    {
+        for (int i = 0; i < KV_CNT; ++i)
+        {
             gen_random(v, VALUE_SIZE);
             vs[t][i] = v;
         }
     }
 
     std::thread ths[THREAD_NUM];
-    for (int i = 0; i < THREAD_NUM; ++i) {
+    for (int i = 0; i < THREAD_NUM; ++i)
+    {
         ths[i] = std::thread(test_thread_conflict, i);
     }
-    for (int i = 0; i < THREAD_NUM; ++i) {
+    for (int i = 0; i < THREAD_NUM; ++i)
+    {
         ths[i].join();
     }
 

@@ -17,7 +17,8 @@ char v[9024];
 std::string ks[KV_CNT];
 std::string vs_1[KV_CNT];
 std::string vs_2[KV_CNT];
-int main() {
+int main()
+{
     Engine *engine = NULL;
     printf_(
         "======================= single thread test "
@@ -67,7 +68,8 @@ int main() {
     assert(value == v);
 
     ///////////////////////////////////
-    for (int i = 0; i < KV_CNT; ++i) {
+    for (int i = 0; i < KV_CNT; ++i)
+    {
         gen_random(k, 6);
         ks[i] = std::string(k) + std::to_string(i);
         gen_random(v, 511);
@@ -76,31 +78,39 @@ int main() {
         vs_2[i] = v;
     }
 
-    for (int i = 0; i < KV_CNT; ++i) {
+    for (int i = 0; i < KV_CNT; ++i)
+    {
         ret = engine->Write(ks[i], vs_1[i]);
         assert(ret == kSucc);
     }
 
-    for (int i = 0; i < KV_CNT; ++i) {
+    for (int i = 0; i < KV_CNT; ++i)
+    {
         ret = engine->Read(ks[i], &value);
         assert(ret == kSucc);
         assert(value == vs_1[i]);
     }
 
-    for (int i = 0; i < KV_CNT; ++i) {
-        if (i % 2 == 0) {
+    for (int i = 0; i < KV_CNT; ++i)
+    {
+        if (i % 2 == 0)
+        {
             ret = engine->Write(ks[i], vs_2[i]);
             assert(ret == kSucc);
         }
     }
 
-    for (int i = 0; i < KV_CNT; ++i) {
+    for (int i = 0; i < KV_CNT; ++i)
+    {
         ret = engine->Read(ks[i], &value);
         assert(ret == kSucc);
 
-        if (i % 2 == 0) {
+        if (i % 2 == 0)
+        {
             assert(value == vs_2[i]);
-        } else {
+        }
+        else
+        {
             assert(value == vs_1[i]);
         }
     }
@@ -110,13 +120,17 @@ int main() {
     // re-open
     ret = Engine::Open(engine_path, &engine);
     assert(ret == kSucc);
-    for (int i = 0; i < KV_CNT; ++i) {
+    for (int i = 0; i < KV_CNT; ++i)
+    {
         ret = engine->Read(ks[i], &value);
         assert(ret == kSucc);
 
-        if (i % 2 == 0) {
+        if (i % 2 == 0)
+        {
             assert(value == vs_2[i]);
-        } else {
+        }
+        else
+        {
             assert(value == vs_1[i]);
         }
     }

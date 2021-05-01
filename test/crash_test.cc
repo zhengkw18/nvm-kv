@@ -25,12 +25,14 @@ std::string ks[KV_CNT];
 std::string vs[KV_CNT];
 
 volatile bool need_kill = false;
-void handler(int signal) {
+void handler(int signal)
+{
     (void)signal;
     need_kill = true;
 }
 
-int main() {
+int main()
+{
     printf_("======================= crash test ============================");
 #ifdef MOCK_NVM
     std::string engine_path =
@@ -40,7 +42,8 @@ int main() {
 #endif
     printf("open engine_path: %s\n", engine_path.c_str());
 
-    for (int i = 0; i < KV_CNT; ++i) {
+    for (int i = 0; i < KV_CNT; ++i)
+    {
         gen_marked_random(k, std::to_string(i) + "-", KEY_SIZE);
         ks[i] = std::string(k);
         gen_random(v, VALUE_SIZE);
@@ -49,20 +52,24 @@ int main() {
 
     signal(SIGUSR1, handler);
     pid_t fpid = fork();
-    if (fpid == 0) {  // child
+    if (fpid == 0)
+    { // child
         Engine *engine = NULL;
         RetCode ret = Engine::Open(engine_path, &engine);
         assert(ret == kSucc);
-        for (int i = 0; i < KV_CNT; ++i) {
+        for (int i = 0; i < KV_CNT; ++i)
+        {
             RetCode ret = engine->Write(ks[i], vs[i]);
             assert(ret == kSucc);
-            if (i == KV_CNT / 3) {
+            if (i == KV_CNT / 3)
+            {
                 kill(getppid(), SIGUSR1);
             }
         }
         delete engine;
-
-    } else if (fpid > 0) {  // me
+    }
+    else if (fpid > 0)
+    { // me
 
         while (!need_kill)
             ;
@@ -80,29 +87,36 @@ int main() {
         std::string value;
 
         int i = 0;
-        for (; i <= KV_CNT / 3; ++i) {
+        for (; i <= KV_CNT / 3; ++i)
+        {
             ret = engine->Read(ks[i], &value);
             assert(ret == kSucc);
             assert(value == vs[i]);
         }
-        for (; i < KV_CNT; ++i) {
+        for (; i < KV_CNT; ++i)
+        {
             ret = engine->Read(ks[i], &value);
-            if (ret == kSucc) {
+            if (ret == kSucc)
+            {
                 assert(value == vs[i]);
-            } else {
+            }
+            else
+            {
                 assert(ret == kNotFound);
                 break;
             }
         }
-        for (; i < KV_CNT; ++i) {
+        for (; i < KV_CNT; ++i)
+        {
             ret = engine->Read(ks[i], &value);
             assert(ret == kNotFound);
         }
         printf_(
             "======================= crash test pass :) "
             "======================");
-
-    } else {
+    }
+    else
+    {
         assert(false);
     }
 
