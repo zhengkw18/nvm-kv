@@ -259,6 +259,7 @@ namespace polar_race
         Snapshot *snapshot = new Snapshot;
         for (u32 i = 0; i < HASH_SIZE; i++)
         {
+            pthread_rwlock_rdlock(&treelock[i]);
             switch (TREE_TYPE)
             {
             case AVL_:
@@ -269,6 +270,7 @@ namespace polar_race
             default:
                 break;
             }
+            pthread_rwlock_unlock(&treelock[i]);
             pthread_rwlock_init(&snapshot->treelock[i], nullptr);
         }
         return snapshot;
