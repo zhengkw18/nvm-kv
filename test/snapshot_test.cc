@@ -15,8 +15,20 @@ using namespace polar_race;
 char k[1024];
 char v[9024];
 std::string ks[KV_CNT];
-std::string vs[TEST_CNT][KV_CNT];
+std::string vs[TEST_CNT + 1][KV_CNT];
 Snapshot *ss[TEST_CNT];
+Snapshot *ss2[KV_CNT];
+
+struct MyVisitor : Visitor
+{
+    int cnt = 0;
+    MyVisitor() {}
+    void Visit(const PolarString &key, const PolarString &) override
+    {
+        ++cnt;
+    }
+    int get_cnt() { return cnt; }
+};
 
 int main()
 {
@@ -75,7 +87,41 @@ int main()
             assert(ret == kNotFound);
         }
     }
-
+    delete engine;
+    // reopen
+    ret = Engine::Open(engine_path, &engine);
+    assert(ret == kSucc);
+    Snapshot *s = engine->GetSnapshot();
+    for (int i = 0; i < KV_CNT; ++i)
+    {
+        gen_random(v, 511);
+        vs[TEST_CNT][i] = v;
+        ret = engine->Write(ks[i], vs[TEST_CNT][i]);
+        assert(ret == kSucc);
+    }
+    MyVisitor visitor;
+    engine->Range(PolarString(""), PolarString(""), visitor, s);
+    assert(visitor.get_cnt() == KV_CNT / TEST_CNT * (TEST_CNT - 1));
+    gen_random(k, 6);
+    for (int i = 0; i < KV_CNT; i++)
+    {
+        ss2[i] = engine->GetSnapshot();
+        ret = engine->Write(k, vs[TEST_CNT][i]);
+        assert(ret == kSucc);
+    }
+    for (int i = 0; i < KV_CNT; i++)
+    {
+        ret = engine->Read(k, &value, ss2[i]);
+        if (i == 0)
+        {
+            assert(ret == kNotFound);
+        }
+        else
+        {
+            assert(ret == kSucc);
+            assert(value == vs[TEST_CNT][i - 1]);
+        }
+    }
     printf_(
         "======================= snapshot test pass :) "
         "======================");

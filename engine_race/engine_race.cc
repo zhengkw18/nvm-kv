@@ -125,7 +125,7 @@ namespace polar_race
                 log_map += key_len + val_len;
                 current_offset += 3 * sizeof(u32) + key_len + val_len;
                 if (insert && valid)
-                    tree[hash(key.data())]->insert(key, current_offset - val_len, val_len);
+                    tree[hash(key.data())]->insert(key, i, current_offset - val_len, val_len);
             }
         }
     }
@@ -168,6 +168,7 @@ namespace polar_race
         header[1] = key.size();
         header[2] = value.size();
         header[0] = 0;
+        u32 seq = current_seq;
         ((u32 *)file_map)[1] = ++current_seq;
         pthread_rwlock_unlock(&rwlock);
         i8 *log_map = (i8 *)(header + 3);
@@ -176,7 +177,7 @@ namespace polar_race
         header[0] = 1;
         i32 _hash = hash(key.data());
         pthread_rwlock_wrlock(&treelock[_hash]);
-        tree[_hash]->insert(key, _current_offset - value.size(), value.size());
+        tree[_hash]->insert(key, seq, _current_offset - value.size(), value.size());
         pthread_rwlock_unlock(&treelock[_hash]);
         return kSucc;
     }
@@ -187,18 +188,16 @@ namespace polar_race
         u32 len, pos;
         i32 _hash = hash(key.data());
         bool res;
+        pthread_rwlock_rdlock(&treelock[_hash]);
         if (snapshot)
         {
-            pthread_rwlock_rdlock(&snapshot->treelock[_hash]);
-            res = snapshot->tree[hash(key.data())]->read(key, pos, len);
-            pthread_rwlock_unlock(&snapshot->treelock[_hash]);
+            res = tree[hash(key.data())]->read(key, pos, len, snapshot->seq);
         }
         else
         {
-            pthread_rwlock_rdlock(&treelock[_hash]);
             res = tree[hash(key.data())]->read(key, pos, len);
-            pthread_rwlock_unlock(&treelock[_hash]);
         }
+        pthread_rwlock_unlock(&treelock[_hash]);
 
         if (res)
         {
@@ -224,18 +223,16 @@ namespace polar_race
         std::vector<std::tuple<std::string, u32, u32>> arr;
         for (u32 i = 0; i < HASH_SIZE; i++)
         {
+            pthread_rwlock_rdlock(&treelock[i]);
             if (snapshot)
             {
-                pthread_rwlock_rdlock(&snapshot->treelock[i]);
-                snapshot->tree[i]->range(lower, upper, arr);
-                pthread_rwlock_unlock(&snapshot->treelock[i]);
+                tree[i]->range(lower, upper, arr, snapshot->seq);
             }
             else
             {
-                pthread_rwlock_rdlock(&treelock[i]);
                 tree[i]->range(lower, upper, arr);
-                pthread_rwlock_unlock(&treelock[i]);
             }
+            pthread_rwlock_unlock(&treelock[i]);
         }
 
         for (auto t : arr)
@@ -257,30 +254,8 @@ namespace polar_race
     Snapshot *EngineRace::GetSnapshot()
     {
         Snapshot *snapshot = new Snapshot;
-        for (u32 i = 0; i < HASH_SIZE; i++)
-        {
-            pthread_rwlock_rdlock(&treelock[i]);
-            switch (TREE_TYPE)
-            {
-            case AVL_:
-                snapshot->tree[i] = new AVL(tree[i]);
-                break;
-            case BPULS_:
-                snapshot->tree[i] = new BPlus(tree[i]);
-            default:
-                break;
-            }
-            pthread_rwlock_unlock(&treelock[i]);
-            pthread_rwlock_init(&snapshot->treelock[i], nullptr);
-        }
+        snapshot->seq = current_seq;
         return snapshot;
-    }
-    RetCode EngineRace::ReleaseSnapshot(Snapshot *snapshot)
-    {
-        for (u32 i = 0; i < HASH_SIZE; i++)
-        {
-            delete snapshot->tree[i];
-        }
     }
 
 } // namespace polar_race

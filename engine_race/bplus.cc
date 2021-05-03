@@ -14,19 +14,6 @@ BPlus::BPlus()
     _root.next = -1;
     _root.prev = -1;
 }
-BPlus::BPlus(Tree *tree)
-{
-    BPlus *other = (BPlus *)tree;
-    node_sz = other->node_sz;
-    data_sz = other->data_sz;
-    node_cnt = other->node_cnt;
-    data_cnt = other->data_cnt;
-    root = other->root;
-    nodes = new BPlusNode[node_sz];
-    datas = new BPlusData[data_sz];
-    memcpy(nodes, other->nodes, node_cnt * sizeof(BPlusNode));
-    memcpy(datas, other->datas, data_cnt * sizeof(BPlusData));
-}
 BPlus::BPlus(const i8 *raw, u32 &sz)
 {
     u32 *_raw = (u32 *)raw;
@@ -42,6 +29,12 @@ BPlus::BPlus(const i8 *raw, u32 &sz)
     memcpy(nodes, __raw, node_cnt * sizeof(BPlusNode));
     __raw += node_cnt;
     memcpy(datas, __raw, data_cnt * sizeof(BPlusData));
+    for (u32 i = 0; i < data_cnt; i++)
+    {
+        std::vector<BPlusData> v;
+        v.push_back(datas[i]);
+        history.push_back(v);
+    }
     sz = 5 * sizeof(u32) + node_cnt * sizeof(BPlusNode) + data_cnt * sizeof(BPlusData);
 }
 BPlus::~BPlus()
@@ -101,7 +94,47 @@ bool BPlus::read(const PolarString &key, u32 &val_len, u32 &val_pos)
     }
     return false;
 }
-void BPlus::insert(const PolarString &key, u32 val_len, u32 val_pos)
+bool BPlus::read(const PolarString &key, u32 &val_len, u32 &val_pos, u32 max_seq)
+{
+    i32 node = root;
+    while (1)
+    {
+        BPlusNode &_node = nodes[node];
+        if (!_node.is_leaf)
+        {
+            for (i32 i = _node.key_num - 1; i >= 0; i--)
+            {
+                if (i == 0 || key.compare(PolarString(_node.meta[i].key, _node.meta[i].key_len)) >= 0)
+                {
+                    node = _node.meta[i].child;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            for (u32 i = 0; i < _node.key_num; i++)
+            {
+                if (key.compare(PolarString(_node.meta[i].key, _node.meta[i].key_len)) == 0)
+                {
+                    std::vector<BPlusData> &v = history[_node.meta[i].child];
+                    BPlusData data;
+                    data.seq = max_seq;
+                    u32 pos = std::lower_bound(v.begin(), v.end(), data) - v.begin();
+                    if (pos == 0)
+                        return false;
+                    pos--;
+                    val_len = v[pos].val_len;
+                    val_pos = v[pos].pos;
+                    return true;
+                }
+            }
+            break;
+        }
+    }
+    return false;
+}
+void BPlus::insert(const PolarString &key, u32 seq, u32 val_len, u32 val_pos)
 {
     i32 node = root;
     while (1)
@@ -127,8 +160,10 @@ void BPlus::insert(const PolarString &key, u32 val_len, u32 val_pos)
                 if (res == 0)
                 {
                     BPlusData &data = datas[_node.meta[i].child];
+                    data.seq = seq;
                     data.val_len = val_len;
                     data.pos = val_pos;
+                    history[_node.meta[i].child].push_back(data);
                     return;
                 }
                 else if (res > 0)
@@ -144,8 +179,11 @@ void BPlus::insert(const PolarString &key, u32 val_len, u32 val_pos)
             BPlusMeta &meta = _node.meta[pos];
             i32 data_head = _new_data();
             BPlusData &data = datas[data_head];
+            data.seq = seq;
             data.val_len = val_len;
             data.pos = val_pos;
+            history.push_back(std::vector<BPlusData>());
+            history[data_head].push_back(data);
             meta.child = data_head;
             meta.key_len = key.size();
             memcpy(meta.key, key.data(), key.size());
@@ -264,6 +302,63 @@ void BPlus::range(const PolarString &lower, const PolarString &upper, std::vecto
                 BPlusMeta &_meta = _node.meta[s_k];
                 BPlusData &_data = datas[_meta.child];
                 arr.push_back(std::make_tuple(std::string(_meta.key, _meta.key_len), _data.pos, _data.val_len));
+                if (s_k < _node.key_num - 1)
+                    s_k++;
+                else
+                {
+                    s_n = _node.next;
+                    s_k = 0;
+                }
+            }
+        }
+    }
+}
+void BPlus::range(const PolarString &lower, const PolarString &upper, std::vector<std::tuple<std::string, u32, u32>> &arr, u32 max_seq)
+{
+    i32 s_n, s_k, e_n, e_k;
+    if (_lower_bound(lower, s_n, s_k))
+    {
+        if (upper.empty() || !_lower_bound(upper, e_n, e_k))
+        {
+            while (s_n != -1)
+            {
+                BPlusNode &_node = nodes[s_n];
+                BPlusMeta &_meta = _node.meta[s_k];
+                std::vector<BPlusData> &v = history[_meta.child];
+                BPlusData data;
+                data.seq = max_seq;
+                u32 pos = std::lower_bound(v.begin(), v.end(), data) - v.begin();
+                if (pos != 0)
+                {
+                    pos--;
+                    BPlusData &_data = v[pos];
+                    arr.push_back(std::make_tuple(std::string(_meta.key, _meta.key_len), _data.pos, _data.val_len));
+                }
+                if (s_k < _node.key_num - 1)
+                    s_k++;
+                else
+                {
+                    s_n = _node.next;
+                    s_k = 0;
+                }
+            }
+        }
+        else
+        {
+            while (s_n != e_n || s_k != e_k)
+            {
+                BPlusNode &_node = nodes[s_n];
+                BPlusMeta &_meta = _node.meta[s_k];
+                std::vector<BPlusData> &v = history[_meta.child];
+                BPlusData data;
+                data.seq = max_seq;
+                u32 pos = std::lower_bound(v.begin(), v.end(), data) - v.begin();
+                if (pos != 0)
+                {
+                    pos--;
+                    BPlusData &_data = v[pos];
+                    arr.push_back(std::make_tuple(std::string(_meta.key, _meta.key_len), _data.pos, _data.val_len));
+                }
                 if (s_k < _node.key_num - 1)
                     s_k++;
                 else

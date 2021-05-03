@@ -14,8 +14,7 @@ namespace polar_race
     class Snapshot
     {
     private:
-        Tree *tree[HASH_SIZE];
-        pthread_rwlock_t treelock[HASH_SIZE];
+        u32 seq;
         friend class EngineRace;
     };
 
@@ -38,7 +37,6 @@ namespace polar_race
      */
         RetCode Range(const PolarString &lower, const PolarString &upper, Visitor &visitor, Snapshot *snapshot) override;
         Snapshot *GetSnapshot() override;
-        RetCode ReleaseSnapshot(Snapshot *snapshot) override;
 
     private:
         u32 current_seq, current_size, current_offset;

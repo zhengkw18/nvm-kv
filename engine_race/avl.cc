@@ -1,5 +1,7 @@
 #include "avl.h"
+#include "engine_race.h"
 #include <cassert>
+
 AVL::AVL()
 {
     root = -1;
@@ -7,19 +9,6 @@ AVL::AVL()
     node_sz = data_sz = 1;
     nodes = new TreeNode[node_sz];
     datas = new TreeData[data_sz];
-}
-AVL::AVL(Tree *tree)
-{
-    AVL *other = (AVL *)tree;
-    node_sz = other->node_sz;
-    data_sz = other->data_sz;
-    node_cnt = other->node_cnt;
-    data_cnt = other->data_cnt;
-    root = other->root;
-    nodes = new TreeNode[node_sz];
-    datas = new TreeData[data_sz];
-    memcpy(nodes, other->nodes, node_cnt * sizeof(TreeNode));
-    memcpy(datas, other->datas, data_cnt * sizeof(TreeData));
 }
 AVL::AVL(const i8 *raw, u32 &sz)
 {
@@ -36,6 +25,12 @@ AVL::AVL(const i8 *raw, u32 &sz)
     memcpy(nodes, __raw, node_cnt * sizeof(TreeNode));
     __raw += node_cnt;
     memcpy(datas, __raw, data_cnt * sizeof(TreeData));
+    for (u32 i = 0; i < data_cnt; i++)
+    {
+        std::vector<TreeData> v;
+        v.push_back(datas[i]);
+        history.push_back(v);
+    }
     sz = 5 * sizeof(u32) + node_cnt * sizeof(TreeNode) + data_cnt * sizeof(TreeData);
 }
 AVL::~AVL()
@@ -79,30 +74,61 @@ bool AVL::read(const PolarString &key, u32 &val_len, u32 &val_pos)
     i32 pos = nodes[cur].data_head;
     val_len = datas[pos].val_len;
     val_pos = datas[pos].pos;
+
     return true;
 }
-void AVL::insert(const PolarString &key, u32 val_len, u32 val_pos)
+bool AVL::read(const PolarString &key, u32 &val_len, u32 &val_pos, u32 max_seq)
+{
+    i32 cur = root;
+    while (cur != -1)
+    {
+        TreeNode &_cur = nodes[cur];
+        i32 res = key.compare(PolarString(_cur.key, _cur.key_len));
+        if (res == 0)
+        {
+            break;
+        }
+        cur = res < 0 ? _cur.left : _cur.right;
+    }
+    if (cur == -1)
+        return false;
+    std::vector<TreeData> &v = history[nodes[cur].data_head];
+    TreeData data;
+    data.seq = max_seq;
+    u32 pos = std::lower_bound(v.begin(), v.end(), data) - v.begin();
+    if (pos == 0)
+        return false;
+    pos--;
+    val_len = v[pos].val_len;
+    val_pos = v[pos].pos;
+
+    return true;
+}
+void AVL::insert(const PolarString &key, u32 seq, u32 val_len, u32 val_pos)
 {
     i32 new_node, delta;
     _insert(root, key, new_node, delta);
     TreeNode &_new_node = nodes[new_node];
-    TreeData *__new_data;
+
     if (_new_node.data_head == -1)
     {
         i32 new_data = _new_data();
-        __new_data = &datas[new_data];
         _new_node.data_head = new_data;
+        history.push_back(std::vector<TreeData>());
     }
-    else
-    {
-        __new_data = &datas[_new_node.data_head];
-    }
-    __new_data->val_len = val_len;
-    __new_data->pos = val_pos;
+    TreeData &_new_data = datas[_new_node.data_head];
+    _new_data.seq = seq;
+    _new_data.val_len = val_len;
+    _new_data.pos = val_pos;
+    history[_new_node.data_head].push_back(_new_data);
 }
 void AVL::range(const PolarString &lower, const PolarString &upper, std::vector<std::tuple<std::string, u32, u32>> &arr)
 {
     _range(lower, upper, arr, root);
+}
+void AVL::range(const PolarString &lower, const PolarString &upper, std::vector<std::tuple<std::string, u32, u32>> &arr, u32 max_seq)
+{
+    _range(lower, upper, arr, root, max_seq);
 }
 bool AVL::_insert(i32 &root, const PolarString &key, i32 &new_node, i32 &delta)
 {
@@ -239,13 +265,45 @@ void AVL::_range(const PolarString &lower, const PolarString &upper, std::vector
     PolarString key(s);
     i32 res1 = lower.empty() ? 1 : key.compare(lower);
     i32 res2 = upper.empty() ? -1 : key.compare(upper);
-    TreeData &_data = datas[_current.data_head];
     if (res1 > 0)
         _range(lower, upper, arr, _current.left);
     if (res1 >= 0 && res2 < 0)
+    {
+        TreeData &_data = datas[_current.data_head];
         arr.push_back(std::make_tuple(std::move(s), _data.pos, _data.val_len));
+    }
+
     if (res2 < 0)
         _range(lower, upper, arr, _current.right);
+}
+
+void AVL::_range(const PolarString &lower, const PolarString &upper, std::vector<std::tuple<std::string, u32, u32>> &arr, i32 current, u32 max_seq)
+{
+    if (current == -1)
+        return;
+    TreeNode &_current = nodes[current];
+    std::string s(_current.key, _current.key_len);
+    PolarString key(s);
+    i32 res1 = lower.empty() ? 1 : key.compare(lower);
+    i32 res2 = upper.empty() ? -1 : key.compare(upper);
+    if (res1 > 0)
+        _range(lower, upper, arr, _current.left, max_seq);
+    if (res1 >= 0 && res2 < 0)
+    {
+        std::vector<TreeData> &v = history[_current.data_head];
+        TreeData data;
+        data.seq = max_seq;
+        u32 pos = std::lower_bound(v.begin(), v.end(), data) - v.begin();
+        if (pos != 0)
+        {
+            pos--;
+            TreeData &_data = v[pos];
+            arr.push_back(std::make_tuple(std::move(s), _data.pos, _data.val_len));
+        }
+    }
+
+    if (res2 < 0)
+        _range(lower, upper, arr, _current.right, max_seq);
 }
 
 i32 AVL::_new_node()
@@ -283,6 +341,6 @@ inline void AVL::_print()
     }
     for (int i = 0; i < data_cnt; i++)
     {
-        printf("Data %d: pos %d len %d\n", i, datas[i].pos, datas[i].val_len);
+        printf("Data %d: seq %d pos %d len %d\n", i, datas[i].seq, datas[i].pos, datas[i].val_len);
     }
 }

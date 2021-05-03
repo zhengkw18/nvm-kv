@@ -64,7 +64,6 @@ namespace polar_race
         virtual RetCode Range(const PolarString &lower, const PolarString &upper, Visitor &visitor, Snapshot *snapshot = nullptr) = 0;
 
         virtual Snapshot *GetSnapshot() = 0;
-        virtual RetCode ReleaseSnapshot(Snapshot *snapshot) = 0;
     };
 
 } // namespace polar_race
