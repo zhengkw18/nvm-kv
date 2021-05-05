@@ -31,6 +31,19 @@ cd test
 ./run_test.sh
 ```
 
+### (Optional) Test for linearizability
+
+Build the test, and run
+
+```
+cd test
+./multi_thread_linearizability
+```
+
+Then, a trace file called `trace.edn` will be generated under the current directory.
+
+Then, you can use tool like [knossos](https://github.com/jepsen-io/knossos) to test whether your implementation violate linearizability.
+
 ## Performance Test
 
 After building the engine
@@ -86,6 +99,10 @@ If your host has less than 4GB memory, allocating a 4GB ramdisk may fail, or use
 You can ...
 
 - Allocate less memory (i.e. 2GB) for your ramdisk. In this case, you may not be able to run `engine_example`.
+
+### 4. About key/value size
+
+Your implementation *should* support variable-length keys and values *within* 512 bytes (512 included), and *optimized* for small KV pairs (i.e. 8 byte keys and 16 bytes value).
 
 ## UPDATE LOG
 

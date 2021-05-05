@@ -1,6 +1,6 @@
 #!/bin/bash
 
-bench=('bench.cc')
+bench=('bench.cc' 'bench_range.cc' 'bench_snapshot.cc')
 
 rm -rf /tmp/ramdisk/data/test-*
 for f in ${bench[@]}; do
